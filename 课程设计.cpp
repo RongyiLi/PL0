@@ -43,15 +43,15 @@ void Exp();
 void Term();
 void Factor();
 
-////////////////////////////////////ÎÄ¼ş¶ÁÈ¡//////////////////////////////////////// 
+////////////////////////////////////æ–‡ä»¶è¯»å–//////////////////////////////////////// 
 bool Init()
 {
 	int i = 0;
 	fstream in;
 	char filename[20];
-	//cout<<"ÇëÊäÈëÎÄ¼şÃû×Ö"<<endl;
+	//cout<<"è¯·è¾“å…¥æ–‡ä»¶åå­—"<<endl;
 	//cin>>filename;
-	strcpy(filename, "4.txt");
+	strcpy(filename, "1.txt");
 	in.open(filename, ios::in);
 	if (in.fail())
 	{
@@ -69,15 +69,15 @@ bool Init()
 	in.close();
 	return true;
 }
-//-------------------------------------ÎÄ¼ş¶ÁÈ¡---------------------------------------- 
+//-------------------------------------æ–‡ä»¶è¯»å–---------------------------------------- 
 
 
-///////////////////////////////////´íÎó´¦Àí//////////////////////////////////////////// 
+///////////////////////////////////é”™è¯¯å¤„ç†//////////////////////////////////////////// 
 
 void Error(int type, const char *str)
 {
 	if (type != -1)
-		cout << "µÚ" << row << "ĞĞ      ";
+		cout << "ç¬¬" << row << "è¡Œ      ";
 	switch (type)
 	{
 	case 0:
@@ -97,9 +97,9 @@ void Error(int type, const char *str)
 		break;
 	}
 }
-//-----------------------------------´íÎó´¦Àí-------------------------------------------- 
+//-----------------------------------é”™è¯¯å¤„ç†-------------------------------------------- 
 
-///////////////////////////////////////´Ê·¨·ÖÎöÆ÷////////////////////////////////////// 
+///////////////////////////////////////è¯æ³•åˆ†æå™¨////////////////////////////////////// 
 void GetChar()
 {
 	if (ch != '\0')
@@ -285,12 +285,12 @@ void SkipFollow(int type)
 		Move();
 	}while(syn!=0);
 }
-//------------------------------------------------------´Ê·¨·ÖÎöÆ÷------------------------------------------- 
+//------------------------------------------------------è¯æ³•åˆ†æå™¨------------------------------------------- 
 
 
 
-//////////////////////////////////////Óï·¨·ÖÎö//////////////////////////////////////////// 
-//<prog> ¡ú program <id>£»<block>
+//////////////////////////////////////è¯­æ³•åˆ†æ//////////////////////////////////////////// 
+//<prog> â†’ program <id>ï¼›<block>
 void Prog()
 {
 	Move();
@@ -316,7 +316,7 @@ void Prog()
 
 }
 
-//<block> ¡ú [<condecl>][<vardecl>][<proc>]<body>
+//<block> â†’ [<condecl>][<vardecl>][<proc>]<body>
 void Block()
 {
 	Condecl();
@@ -325,7 +325,7 @@ void Block()
 	Body();
 }
 
-//<condecl> ¡ú const <const>{,<const>};
+//<condecl> â†’ const <const>{,<const>};
 void Condecl()
 {
 	if (syn == 2)  // const
@@ -351,7 +351,7 @@ void Condecl()
 }
 
 
-//<const> ¡ú <id>:=<integer>
+//<const> â†’ <id>:=<integer>
 void Const()
 {
 	if (syn == 16)		//<id>
@@ -369,7 +369,7 @@ void Const()
 }
 
 
-//<vardecl> ¡ú var <id>{,<id>};
+//<vardecl> â†’ var <id>{,<id>};
 void Vardecl()
 {
 	if (syn == 3)	//var
@@ -401,7 +401,7 @@ void Vardecl()
 		SkipFollow(4);
 }
 
-//<proc> ¡ú procedure <id>£¨[<id>{,<id>}]£©;<block>{;<proc>}
+//<proc> â†’ procedure <id>ï¼ˆ[<id>{,<id>}]ï¼‰;<block>{;<proc>}
 void Proc()
 {
 	if (syn == 4)	//procedure
@@ -447,14 +447,14 @@ void Proc()
 }
 
 
-//<body> ¡ú begin <statement>{;<statement>}end
+//<body> â†’ begin <statement>{;<statement>}end
 void Body()
 {
 	if (syn == 5)	//begin
 	{
 		Move();
 		Statement();
-		//; || statementµÄfirst¼¯
+		//; || statementçš„firsté›†
 		//while (syn == 25||(syn==16||syn==7||syn==10||syn==12||syn==5||syn==13||syn==14))
 		while(syn==25) //;
 		{
@@ -478,12 +478,12 @@ void Body()
 
 
 /*
-<statement> ¡ú <id> := <exp>
+<statement> â†’ <id> := <exp>
 |if <lexp> then <statement>[else <statement>]
 |while <lexp> do <statement>
-|call <id>£¨[<exp>{,<exp>}]£©
+|call <id>ï¼ˆ[<exp>{,<exp>}]ï¼‰
 |<body>
-|read (<id>{£¬<id>})
+|read (<id>{ï¼Œ<id>})
 |write (<exp>{,<exp>})
 */
 void Statement()
@@ -539,7 +539,7 @@ void Statement()
 			Move();
 		else
 			Error(1);
-		//expµÄfirst¼¯
+		//expçš„firsté›†
 		if (syn==18||syn==16||syn==17)
 		{
 			Exp();
@@ -610,7 +610,7 @@ void Statement()
 	}
 }
 
-//<lexp> ¡ú <exp> <lop> <exp>|odd <exp>
+//<lexp> â†’ <exp> <lop> <exp>|odd <exp>
 void Lexp()
 {
 	if (syn == 15)	//odd
@@ -629,7 +629,7 @@ void Lexp()
 	}
 }
 
-//<exp> ¡ú [+|-]<term>{<aop><term>}
+//<exp> â†’ [+|-]<term>{<aop><term>}
 void Exp()
 {
 	if (syn == 18)	// + | -
@@ -643,7 +643,7 @@ void Exp()
 }
 
 
-//<term> ¡ú <factor>{<mop><factor>}
+//<term> â†’ <factor>{<mop><factor>}
 void Term()
 {
 	Factor();
@@ -654,7 +654,7 @@ void Term()
 	}
 }
 
-//<factor>¡ú<id>|<integer>|(<exp>)
+//<factor>â†’<id>|<integer>|(<exp>)
 void Factor()
 {
 	if (syn == 16 || syn == 17)  // <id>||<integer>
@@ -671,7 +671,7 @@ void Factor()
 	else
 		Error(1);
 }
-//--------------------------------------------Óï·¨·ÖÎö----------------------------------------- 
+//--------------------------------------------è¯­æ³•åˆ†æ----------------------------------------- 
 
 int main()
 {
