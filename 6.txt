@@ -1,0 +1,14 @@
+program lry;
+const a:=10;
+var b,c;
+	procedure p(c,d);
+	var a;
+	begin
+	a := c+d;
+	write(a);
+	end
+begin
+read(b);
+call p(b,5+5);
+write(a);
+end

@@ -1,0 +1,15 @@
+program main;
+var a,sum;
+	procedure sub(n);
+	begin
+	sum:=sum+n;
+	n:=n-1;
+	write(n);
+	while n>1 do call sub(n)
+	end;
+begin
+read(a);
+sum:=0;
+call sub(a);
+write(sum);
+end

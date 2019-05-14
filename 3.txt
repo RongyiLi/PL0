@@ -1,0 +1,29 @@
+program lry;
+const a :=10;
+var b,c,d,e;
+procedure loop(f,g);
+	const n:=7;
+	var i;
+	begin
+	i:=f;
+	while i<n do
+	begin
+	  i:=i+1;
+	write(i);
+	end;
+	write(f);
+	write(g);
+	end
+begin
+read(b,c);
+write(b,c);
+b:=c+10*5;
+write(b);
+if b<100 then
+    b:= -5
+else
+   b :=5;
+write(b);
+call loop(b,c);
+write(b,c);
+end

@@ -1,0 +1,13 @@
+program lry;
+const a :=10 ;
+var b,c;
+   procedure a(b);
+	begin
+	b := b+1;
+	write(b);
+	call a(b);
+	end
+begin
+b :=1; 
+call a(b);
+end

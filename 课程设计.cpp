@@ -3,21 +3,76 @@
 #include <string.h>
 #include <stdlib.h>
 using namespace std;
+#define stacksize 1000 
 #define keyword_num 15
 char keyword[][20] = { "program","const","var","procedure","begin","end",
 "if","then","else","while","do","call","read","write","odd" };
-char id[100][20];
-int id_ptr = 0;
-char integer[100];
+
+/*∑˚∫≈*/
+#define symnum 33
+enum symbol{
+	nul, programsym, constsym, varsym, proceduresym,
+	beginsym, endsym, ifsym, thensym, elsesym, 
+	whilesym, dosym, callsym, readsym, writesym, 
+	oddsym,	ident,	number,
+	pls,	mins, times,	slash,	becomes,
+	eql,	neq,   lss,   leq,	 gtr,	geq,
+	lparen, rparen,	comma,	semicolon
+};
+
+enum symbol sym;
+
+enum object{
+	constant,
+	variable,
+	procedur
+};
+
+/*÷∏¡Ó*/
+#define functiomnum 10
+enum  function{ 
+	lit,	opr,	lod,
+	sto,	cal,	inte,
+	jmp,	jpc,	red,
+	wrt
+};
+
+int cx=0;
+#define cxmax 1000
+struct instruction{
+	enum function f;  /*–Èƒ‚ª˙¥˙¬Î÷∏¡Ó*/ 
+	int l;			  /*“˝”√≤„”Î…˘√˜≤„µƒ≤„¥Œ≤Ó*/ 
+	int a;			  /*∏˘æ›fµƒ≤ªÕ¨∂¯≤ªÕ¨*/ 
+};
+struct instruction code[cxmax];
+
+#define tablestruct_name_max 10
+#define table_max 100
+
+int table_n=0;
+struct tablestruct{
+	char name[tablestruct_name_max];
+	enum object kind;
+	int val;	// ˝÷µΩˆconst π”√ 
+	int level;	//À˘¥¶≤„
+	int adr;
+	int size;
+};
+
+struct tablestruct table[table_max];
+
+
 char text[10000];
 int ptr = 0;
 char ch;
 char token[100];
+int num;
 int token_ptr = 0;
 int row = 1;
-int syn = 0;
 bool error = false;
-int follow[][5] = {{0},
+bool analyzer_error=false;
+int error_num=0;
+int follow[][5] = { {0},
 					{25,0},
 					{3,4,5,0},
 					{24,25},
@@ -28,30 +83,41 @@ int follow[][5] = {{0},
 
 bool Init();
 void Move();
-void SkipFollow(int type); 
+void SkipFollow(int type);
 void Error(int type = -1, const char *str = '\0');
+void Analyzer();
 void Prog();
-void Block();
-void Condecl();
-void Const();
-void Vardecl();
-void Proc();
-void Body();
-void Statement();
-void Lexp();
-void Exp();
-void Term();
-void Factor();
+void Block(int lev,int &tx,int dxx,int txx);
+void Condecl(int &tx, int lev, int &dx);
+void Const(int &tx, int lev, int &dx);
+void Vardecl(int &tx, int lev, int &dx);
+void Proc(int &tx, int lev, int &dx);
+void Body(int current_procedure_tx, int tx, int lev);
+void Statement(int current_procedure_tx, int tx, int lev);
+void Lexp(int current_procedure_tx, int lev);
+void Exp(int current_procedure_tx, int lev);
+void Term(int current_procedure_tx,int lev);
+void Factor(int current_procedure_tx,int lev);
+int position(int current_procedure_tx); 
+int position_procedure(int tx);
+void Enter(enum object k,int &tx,int lev,int &dx);
+int gen(enum function x,int y,int z); 
+int base(int l, int *s, int b);
+void interpret();
 
-////////////////////////////////////Êñá‰ª∂ËØªÂèñ//////////////////////////////////////// 
+
+
+
+
+////////////////////////////////////Œƒº˛∂¡»°//////////////////////////////////////// 
 bool Init()
 {
 	int i = 0;
 	fstream in;
 	char filename[20];
-	//cout<<"ËØ∑ËæìÂÖ•Êñá‰ª∂ÂêçÂ≠ó"<<endl;
-	//cin>>filename;
-	strcpy(filename, "1.txt");
+	cout<<"«Î ‰»Î÷¥––µƒ≥Ã–ÚŒƒº˛√˚◊÷:  "; 
+	cin>>filename;
+	//strcpy(filename, "4.txt");
 	in.open(filename, ios::in);
 	if (in.fail())
 	{
@@ -69,15 +135,16 @@ bool Init()
 	in.close();
 	return true;
 }
-//-------------------------------------Êñá‰ª∂ËØªÂèñ---------------------------------------- 
+//-------------------------------------Œƒº˛∂¡»°---------------------------------------- 
 
 
-///////////////////////////////////ÈîôËØØÂ§ÑÁêÜ//////////////////////////////////////////// 
+///////////////////////////////////¥ÌŒÛ¥¶¿Ì//////////////////////////////////////////// 
 
 void Error(int type, const char *str)
 {
-	if (type != -1)
-		cout << "Á¨¨" << row << "Ë°å      ";
+	error_num++;
+	if (type<10)	//running error≤ª ‰≥ˆ 
+		cout << "µ⁄" << row << "––      ";
 	switch (type)
 	{
 	case 0:
@@ -93,19 +160,40 @@ void Error(int type, const char *str)
 		cout << "[Lexical  Error] missing " << str << " before " << token << endl;
 		break;
 	case 4:
-		cout<<"[Syntax Error] expected primary-expression before "<<token<<endl;
+		cout<<"[Syntax Error] redundant"<<endl;
+		break;
+	case 5:
+		cout<<"[Semantic Error] Undefined "<<token<<endl;
+		break;
+	case 6:
+		cout<<"[Semantic Error] Error type"<<endl;
+		break;
+	case 7:
+		cout<<"[Semantic Error] redeclaration of "<<token<<endl;
+		break;
+	case 8:
+		cout<<"[Syntax Error] unknown error"<<endl;
+		break;
+	case 9:
+		cout<<"[Semantic Error] parameter mismatch"<<endl;
+		break;
+	case 10:
+		cout<<"[Running Error] stack overflows"<<endl;
+		break;
+	case 11:
+		cout<<"[Running Error] division error"<<endl;
 		break;
 	}
 }
-//-----------------------------------ÈîôËØØÂ§ÑÁêÜ-------------------------------------------- 
+//-----------------------------------¥ÌŒÛ¥¶¿Ì-------------------------------------------- 
 
-///////////////////////////////////////ËØçÊ≥ïÂàÜÊûêÂô®////////////////////////////////////// 
+///////////////////////////////////////¥ ∑®∑÷Œˆ∆˜////////////////////////////////////// 
 void GetChar()
 {
 	if (ch != '\0')
 		ch = text[ptr++];
 	else
-		syn = 0;
+		sym = nul;
 }
 
 void GetBC()
@@ -117,7 +205,6 @@ void GetBC()
 		GetChar();
 	}
 }
-
 
 
 bool IsLetter()
@@ -142,16 +229,19 @@ bool IsKeyword()
 	{
 		if (strcmp(token, keyword[i]) == 0)
 		{
-			syn = i + 1;
+			sym = (enum symbol)(i + 1);
 			return true;
 		}
 	}
 	return false;
 }
 
-void InsertVariable()
+void to_int()
 {
-	strcpy(id[id_ptr++], token);
+	int n=strlen(token),i;
+	num=0;
+	for(i=0; i<n; i++)
+		num=10*num+(token[i]-'0');
 }
 
 void Reset()
@@ -192,11 +282,8 @@ void Move()
 		ptr--;
 		if (error)
 			Error(0);
-		else if (!IsKeyword())
-		{
-			InsertVariable();
-			syn = 16;
-		}
+		sym = ident;
+		IsKeyword();
 	}
 	else if (IsDigit())
 	{
@@ -221,14 +308,22 @@ void Move()
 		token[token_ptr] = '\0';
 		ptr--;
 		if (error)
+		{
 			Error(0);
+			num=0;
+	    }
 		else
-			syn = 17;
+			to_int();
+		sym = number;
 	}
-	else if (ch == '+' || ch == '-')
-		syn = 18;
-	else if (ch == '*' || ch == '/')
-		syn = 19;
+	else if (ch == '+' )
+		sym = pls;
+	else if (ch == '-' )
+		sym = mins;
+	else if (ch == '*' )
+		sym = times;
+	else if (ch == '/' )
+		sym = slash;
 	else if (ch == '=' || ch == '<' || ch == '>')
 	{
 		token[token_ptr++] = ch;
@@ -237,111 +332,153 @@ void Move()
 		token[token_ptr] = '\0';
 
 		if (strcmp(token, "<>") == 0)
-			syn = 20;
+			sym = neq;
 		else if (strcmp(token, "<=") == 0)
-			syn = 20;
+			sym = leq;
 		else if (strcmp(token, ">=") == 0)
-			syn = 20;
+			sym = geq;
 		else
 		{
 			token[token_ptr - 1] = '\0';
 			ptr--;
-			syn = 20;
+			if (strcmp(token, "=") == 0)
+			sym = eql;
+			else if (strcmp(token, "<") == 0)
+			sym = lss;
+			else if (strcmp(token, ">") == 0)
+			sym = gtr;
 		}
 	}
 	else if (ch == ':')
 	{
 		GetChar();
-		if (ch == '=')
-			syn = 21;
-		else
+		sym = becomes;
+		if(ch != '=')
 		{
 			Error(3, "=");
 			ptr--;
 		}
 	}
 	else if (ch == '(')
-		syn = 22;
+		sym = lparen;
 	else if (ch == ')')
-		syn = 23;
+		sym = rparen;
 	else if (ch == ',')
-		syn = 24;
+		sym = comma;
 	else if (ch == ';')
-		syn = 25;
-	else
+		sym = semicolon;
+/*	else
 		if (ch != '\0')
-			Error();
+			Error();*/ 
 }
 
 void SkipFollow(int type)
 {
-	int i=0;
+	/*int i=0;
 	do{
 		for(i=0; follow[type][i]!=0; i++)
-			if(follow[type][i]==syn)
+			if(follow[type][i]==sym)
 				break;
 		if(follow[type][i]!=0)
 			break;
 		Move();
-	}while(syn!=0);
+	}while(sym!=0);*/
+	int i=0;
+	for(i=0; follow[type][i]!=0; i++)
+			if(follow[type][i]==sym)
+				return;
+	Error(8);
+	while (sym!=0)
+	{
+		for(i=0; follow[type][i]!=0; i++)
+			if(follow[type][i]==sym)
+				break;
+		if(follow[type][i]!=0)
+			break;
+		Move();
+	}
 }
-//------------------------------------------------------ËØçÊ≥ïÂàÜÊûêÂô®------------------------------------------- 
+
+//------------------------------------------------------¥ ∑®∑÷Œˆ∆˜------------------------------------------- 
+void Analyzer()
+{
+	Prog();
+	if (sym!=nul)
+		Error(4);
+}
 
 
-
-//////////////////////////////////////ËØ≠Ê≥ïÂàÜÊûê//////////////////////////////////////////// 
-//<prog> ‚Üí program <id>Ôºõ<block>
+//////////////////////////////////////”Ô∑®”Ô“Â∑÷Œˆ∫Õ÷–º‰¥˙¬Î≤˙…˙//////////////////////////////////////////// 
+//<prog> °˙ program <id>£ª<block>
 void Prog()
 {
+	int tx=0;
 	Move();
-	if (syn != 1)	//program
+	if (sym != programsym)	//program
 		Error(2, "program");
 	else
 		Move();
 
-	if (syn == 16)
+	if (sym == ident)
 		Move();
 	else
 		Error(2,"<id>");
 		
-		if (syn != 25)	//;
+		if (sym != semicolon)	//;
 			Error(2, ";");
 		else
 			Move();
 
-		Block();
-		
-		if(syn!=0)
-			Error(4);
+		Block(0,tx,3,tx);
 
 }
 
-//<block> ‚Üí [<condecl>][<vardecl>][<proc>]<body>
-void Block()
+//<block> °˙ [<condecl>][<vardecl>][<proc>]<body>
+/*lev :≤„ ˝ 
+  tx £∫table±Ìµƒœ¬±Í÷∏’Î, «“‘÷µ≤Œ ˝–Œ Ω π”√µƒ°£
+  dxx: »Áπ˚”––Œ≤Œ£¨¥”dxxø™ º
+  txx: procedur ‘⁄table÷–∂®“ÂµƒŒª÷√
+  */ 
+void Block(int lev,int &tx,int dxx,int txx)
 {
-	Condecl();
-	Vardecl();
-	Proc();
-	Body();
+	int dx,current_procedure_tx;
+	dx=dxx;
+	table[txx].adr=cx;	//procedur÷–µƒadr¥Ê∑≈JMP÷∏¡ÓµƒŒª÷√ 
+	gen(jmp,0,0);
+	
+	Condecl(tx,lev,dx);
+	Vardecl(tx,lev,dx);
+	current_procedure_tx=tx;
+	Proc(tx,lev,dx);
+	code[table[txx].adr].a=cx;    //ø™ º…˙≥…µ±«∞π˝≥Ãµƒ¥˙¬Î
+	gen(inte,0,dx);  //…˙≥…∑÷≈‰ƒ⁄¥Ê¥˙¬Î
+	Body(current_procedure_tx,tx,lev);
+	
+	//table[tx_temp].adr=cx;
+	
+	//table[tx_temp].adr=cx;     //µ±«∞π˝≥Ã¥˙¬Îµÿ÷∑
+	table[txx].size=dx;    //
+	
+	gen(opr,0,0);
 }
 
-//<condecl> ‚Üí const <const>{,<const>};
-void Condecl()
+//<condecl> °˙ const <const>{,<const>};
+void Condecl(int &tx, int lev, int &dx)
 {
-	if (syn == 2)  // const
+	if (sym == constsym)  // const
 	{
 		Move();
-		Const();
+		Const(tx,lev,dx);
 
 		Move();
-		while (syn == 24)  //,
+		while (sym == comma)  //,
 		{
 			Move();
-			Const();
+			Const(tx,lev,dx);
 			Move();
 		}
 
-		if (syn == 25)	//;
+		if (sym == semicolon)	//;
 			Move();
 		else
 			Error(2,";");
@@ -351,17 +488,24 @@ void Condecl()
 }
 
 
-//<const> ‚Üí <id>:=<integer>
-void Const()
+//<const> °˙ <id>:=<integer>
+void Const(int &tx, int lev, int &dx)
 {
-	if (syn == 16)		//<id>
+	if (sym == ident)		//<id>
 	{
+		Enter(constant,tx,lev,dx);
 		Move();
-		if (syn == 21)		//:=
+		if (sym == becomes)		//:=
 		{
 			Move();
-			if (syn != 17)		//<integer>
+			if (sym != number)		//<integer>
+			{
 				Error(1);
+				tx--;
+			}
+			else
+				table[tx].val=num;
+				
 		}
 	}
 	else
@@ -369,26 +513,29 @@ void Const()
 }
 
 
-//<vardecl> ‚Üí var <id>{,<id>};
-void Vardecl()
+//<vardecl> °˙ var <id>{,<id>};
+void Vardecl(int &tx, int lev, int &dx)
 {
-	if (syn == 3)	//var
+	if (sym == varsym)	//var
 	{
 		Move();
-		if (syn == 16)
+		if (sym == ident)
 		{
+			Enter(variable,tx,lev,dx);
 			Move();
-			while (syn == 24)	//,
+			while (sym == comma)	//,
 			{
 				Move();
-				if (syn != 16)	//<id>
+				if (sym != ident)	//<id>
 				{
 					Error(1);
 					break;
 				}
+				else
+					Enter(variable,tx,lev,dx);
 				Move();
 			}
-			if (syn == 25)	//;
+			if (sym == semicolon)	//;
 				Move();
 		}
 		else
@@ -401,45 +548,52 @@ void Vardecl()
 		SkipFollow(4);
 }
 
-//<proc> ‚Üí procedure <id>Ôºà[<id>{,<id>}]Ôºâ;<block>{;<proc>}
-void Proc()
+//<proc> °˙ procedure <id>£®[<id>{,<id>}]£©;<block>{;<proc>}
+void Proc(int &tx, int lev, int &dx)
 {
-	if (syn == 4)	//procedure
+	int txx,dxx;
+	if (sym == proceduresym)	//procedure
 	{
 		Move();
-		if (syn == 16)	//<id>
+		if (sym == ident)	//<id>
+		{
+			Enter(procedur,tx,lev,dx);
+	
 			Move();
+		}
 		else
 			Error(2,"<id>");
 			
-			if (syn == 22)		//(
+		txx=tx;	
+			if (sym == lparen)		//(
 				Move();
 			else 
 				Error(2,"(");
-				
-				while (syn == 16)	//<id>
+			dxx=3;	
+				while (sym == ident)	//<id>
 				{
+					Enter(variable,tx,lev+1,dxx);
 					Move();
-					if (syn != 24)	//,
+					if (sym != comma)	//,
 						break;
 					Move();
 				}
-				
-				if (syn != 23)	//)
+				table[txx].val=dxx-3;	//–Œ≤Œµƒ∏ˆ ˝ 
+				if (sym != rparen)	//)
 					Error(2,")");
 				else
 					Move();
 					
-				if (syn != 25)	//;
+				if (sym != semicolon)	//;
 					Error(2,";");
 				else
 					Move();
 
-				Block();
-				while (syn == 25)	//;
+				Block(lev+1,tx,dxx,txx);
+				while (sym == semicolon)	//;
 				{
 					Move();
-					Proc();
+					Proc(tx,lev,dx);
 				}
 	}
 	else
@@ -447,24 +601,24 @@ void Proc()
 }
 
 
-//<body> ‚Üí begin <statement>{;<statement>}end
-void Body()
+//<body> °˙ begin <statement>{;<statement>}end
+void Body(int current_procedure_tx, int tx,int lev)
 {
-	if (syn == 5)	//begin
+	if (sym == beginsym)	//begin
 	{
 		Move();
-		Statement();
-		//; || statementÁöÑfirstÈõÜ
-		//while (syn == 25||(syn==16||syn==7||syn==10||syn==12||syn==5||syn==13||syn==14))
-		while(syn==25) //;
+		Statement(current_procedure_tx,tx,lev);
+		//; || statementµƒfirstºØ
+		//while (sym == 25||(sym==16||sym==7||sym==10||sym==12||sym==5||sym==13||sym==14))
+		while(sym==semicolon) //;
 		{
-			/*if(syn!=25)
+			/*if(sym!=25)
 				Error(2,";");*/
 			Move();
-			Statement();
+			Statement(current_procedure_tx,tx,lev);
 		}
 	
-		if (syn == 6)	//end
+		if (sym == endsym)	//end
 			Move();
 		else
 			Error(2, "end");
@@ -478,128 +632,183 @@ void Body()
 
 
 /*
-<statement> ‚Üí <id> := <exp>
+<statement> °˙ <id> := <exp>
 |if <lexp> then <statement>[else <statement>]
 |while <lexp> do <statement>
-|call <id>Ôºà[<exp>{,<exp>}]Ôºâ
+|call <id>£®[<exp>{,<exp>}]£©
 |<body>
-|read (<id>{Ôºå<id>})
+|read (<id>{£¨<id>})
 |write (<exp>{,<exp>})
 */
-void Statement()
+void Statement(int current_procedure_tx,int tx,int lev)
 {
-	switch (syn)
+	int i,cx1_temp,cx2_temp;
+	switch (sym)
 	{
-	case 16:	//<id>
+	case ident:	//<id>
+		i=position(current_procedure_tx);
+		if(i==0)
+			Error(5);
+		else if (table[i].kind!=variable)
+			Error(6);
 		Move();
-		if (syn == 21)	//:=
+		if (sym == becomes)	//:=
 		{
 			Move();
-			Exp();
+			Exp(current_procedure_tx,lev);
+			gen(sto,lev-table[i].level,table[i].adr);
 		}
-		
 		else
 			Error(1);
 		break;
-	case 7:    //if
+	case ifsym:    //if
 		Move();
-		Lexp();
+		Lexp(current_procedure_tx,lev);
 		//Move();
-		if (syn == 8)	//then
+		if (sym == thensym)	//then
 			Move();
 		else
 			Error(2, "then");
-
-		Statement();
-		if (syn == 9)	//else
+		
+		cx1_temp=cx;
+		gen(jpc,0,0);
+		Statement(current_procedure_tx,tx,lev);
+		cx2_temp=cx;
+		gen(jmp,0,0);
+		code[cx1_temp].a=cx;
+		if (sym == elsesym)	//else
 		{
 			Move();
-			Statement();
+			Statement(current_procedure_tx,tx,lev);
 		}
+		code[cx2_temp].a=cx;
 		break;
-	case 10:   //while
+	case whilesym:   //while
 		Move();
-		Lexp();
-		//Move();
-		if (syn == 11)	//do
+		cx1_temp=cx;
+		Lexp(current_procedure_tx,lev);
+		cx2_temp=cx;
+		gen(jpc,0,0);
+		
+		if (sym == dosym)	//do
 			Move();
 		else
 			Error(2, "do");
 
-		Statement();
+		Statement(current_procedure_tx,tx,lev);
+		gen(jmp,0,cx1_temp);
+		code[cx2_temp].a=cx;
 		break;
-	case 12:	//call
+	case callsym:	//call
 		Move();
-		if (syn == 16)	//<id>
-			Move();
-		else
-			Error(1);
-
-		if (syn == 22)
-			Move();
-		else
-			Error(1);
-		//expÁöÑfirstÈõÜ
-		if (syn==18||syn==16||syn==17)
+		if (sym == ident)	//<id>
 		{
-			Exp();
-			while (syn == 24)		//,
-			{
-				Move();
-				Exp();
-			}
-		}
-		//else
-		//	Error(2,"<exp>");
-
-		if (syn == 23)
+			i=position_procedure(tx);
+			if(i==0)
+				Error(5);
+			else if (table[i].kind!=procedur)
+				Error(6);			
 			Move();
+		}
 		else
 			Error(1);
-		break;
-	case 5:     //<body>
-		Body();
-		break;
-	case 13:	//read
-		Move();
-		if (syn == 22)	//(
+		
+		if (sym == lparen)	//(
 			Move();
 		else
 			Error(2,"(");
-
-		if (syn == 16)	//<id>
-			Move();
-		else
-			Error(1);
-
-		while (syn == 24)		//,
+		//expµƒfirstºØ
+		cx1_temp=table[i].val; //≤Œ ˝∏ˆ ˝ 
+		if (sym==pls||sym==mins||sym==ident||sym==number)
 		{
-			Move();
-			if (syn != 16)
-				break;
-			Move();
+			Exp(current_procedure_tx,lev);
+			gen(opr,0,7);
+			cx1_temp--; 
+			while (sym == comma)		//,
+			{
+				Move();
+				Exp(current_procedure_tx,lev);
+				gen(opr,0,7);
+				cx1_temp--;
+			}
 		}
-
-		if (syn == 23)	//)
+		if	(cx1_temp!=0)
+			Error(9);
+		//else
+		//	Error(2,"<exp>");
+		gen(cal,lev-table[i].level,table[i].adr);
+		if (sym == rparen)
 			Move();
 		else
 			Error(2,")");
 		break;
-	case 14:	//write
+	case beginsym:     //<body>
+		Body(current_procedure_tx,tx,lev);
+		break;
+	case readsym:	//read
 		Move();
-		if (syn == 22)	//(
+		if (sym == lparen)	//(
 			Move();
 		else
 			Error(2,"(");
 
-		Exp();
-		while (syn == 24)		//,
+		if (sym == ident)	//<id>
+		{
+			i=position(current_procedure_tx);
+			if(i==0)
+				Error(5);
+			else if (table[i].kind!=variable)
+				Error(6);
+			
+			//gen(opr,0,16);
+			//gen(sto,lev-table[i].level,table[i].adr);
+			gen(red,lev-table[i].level,table[i].adr);
+			
+			Move();
+		}
+		else
+			Error(1);
+
+		while (sym == comma)		//,
 		{
 			Move();
-			Exp();
+			if (sym != ident)
+				break;
+			i=position(current_procedure_tx);
+			if(i==0)
+				Error(5);
+			else if (table[i].kind!=variable)
+				Error(6);
+			gen(red,lev-table[i].level,table[i].adr);
+			Move();
 		}
 
-		if (syn == 23)	//)
+		if (sym == rparen)	//)
+			Move();
+		else
+			Error(2,")");
+		break;
+	case writesym:	//write
+		Move();
+		if (sym == lparen)	//(
+			Move();
+		else
+			Error(2,"(");
+	 
+		Exp(current_procedure_tx,lev);
+		gen(wrt,0,0);
+		gen(opr,0,15);
+		while (sym == comma)		//,
+		{
+			Move();
+			Exp(current_procedure_tx,lev);
+			gen(wrt,0,0);
+			gen(opr,0,15);
+		}
+
+		if (sym == rparen)	//)
+			//gen(opr,0,14);    //…˙≥… ‰≥ˆ÷∏¡Ó£¨ ‰≥ˆ’ª∂•µƒ÷µ
+			//gen(opr,0,15);  // ‰≥ˆªª––
 			Move();
 		else
 			Error(2,")");
@@ -610,60 +819,123 @@ void Statement()
 	}
 }
 
-//<lexp> ‚Üí <exp> <lop> <exp>|odd <exp>
-void Lexp()
+//<lexp> °˙ <exp> <lop> <exp>|odd <exp>
+void Lexp(int current_procedure_tx,int lev)
 {
-	if (syn == 15)	//odd
+	enum symbol lop;
+	if (sym == oddsym)	//odd
 	{
 		Move();
-		Exp();
+		Exp(current_procedure_tx,lev);
+		gen(opr,0,6);
 	}
 	else
 	{
-		Exp();
-		if (syn == 20)	//<lop>
+		Exp(current_procedure_tx,lev);
+		if (sym == eql||sym == neq||sym == lss||
+			sym == leq||sym == gtr||sym == geq)	//<lop>
+		{
+			lop=sym;
 			Move();
+		}
 		else
 			Error(2,"<lop>");
-		Exp();
+		Exp(current_procedure_tx,lev);
+		
+		switch(lop)
+		{
+			case eql:
+				gen(opr,0,8);
+				break;
+			case neq:
+				gen(opr,0,9);
+				break;
+			case lss:
+				gen(opr,0,10);
+				break;
+			case geq:
+				gen(opr,0,11);
+				break;
+			case gtr:
+				gen(opr,0,12);
+				break;
+			case leq:
+				gen(opr,0,13);
+				break;
+		}
 	}
 }
 
-//<exp> ‚Üí [+|-]<term>{<aop><term>}
-void Exp()
+//<exp> °˙ [+|-]<term>{<aop><term>}
+void Exp(int current_procedure_tx,int lev)
 {
-	if (syn == 18)	// + | -
-		Move();
-	Term();
-	while (syn == 18) // + | -
+	enum symbol aop=pls;
+	if (sym == pls||sym== mins)	// + | -
 	{
+		aop=sym;
 		Move();
-		Term();
+	}
+	Term(current_procedure_tx, lev);
+	if(aop==mins)
+		gen(opr,0,1);
+	while (sym == pls||sym== mins) // + | -
+	{
+		aop=sym;
+		Move();
+		Term(current_procedure_tx, lev);
+		if (aop==pls)
+			gen(opr,0,2);
+		else if(aop==mins)
+			gen(opr,0,3);
 	}
 }
 
 
-//<term> ‚Üí <factor>{<mop><factor>}
-void Term()
+//<term> °˙ <factor>{<mop><factor>}
+void Term(int current_procedure_tx,int lev)
 {
-	Factor();
-	while (syn == 19)	// * | / 
+	enum symbol mop;
+	Factor(current_procedure_tx,lev);
+	while (sym == times|| sym==slash)	// * | / 
 	{
+		mop=sym;
 		Move();
-		Factor();
+		Factor(current_procedure_tx,lev);
+		if(mop==times)
+			gen(opr,0,4);
+		else if(mop==slash)
+			gen(opr,0,5);
 	}
 }
 
-//<factor>‚Üí<id>|<integer>|(<exp>)
-void Factor()
+//<factor>°˙<id>|<integer>|(<exp>)
+void Factor(int current_procedure_tx,int lev)
 {
-	if (syn == 16 || syn == 17)  // <id>||<integer>
-		Move();
-	else if (syn == 22)	//(
+	int i;
+	if (sym == ident)	//<id>
 	{
-		Exp();
+		i=position(current_procedure_tx);
+			if(i==0)
+				Error(5);
+			else if (table[i].kind==procedur)
+				Error(6);
+			
+			if(table[i].kind==constant)
+				gen(lit,0,table[i].val);
+			else if(table[i].kind==variable)
+				gen(lod,lev-table[i].level,table[i].adr);
 		Move();
-		if (syn == 23)		//)
+	}
+	else if (sym == number)  // <integer>
+	{
+		Move();
+		gen(lit,0,num); 
+	}
+	else if (sym == lparen)	//(
+	{
+		Exp(current_procedure_tx,lev);
+		Move();
+		if (sym == rparen)		//)
 			Move();
 		else
 			Error(2,")");
@@ -671,13 +943,323 @@ void Factor()
 	else
 		Error(1);
 }
-//--------------------------------------------ËØ≠Ê≥ïÂàÜÊûê----------------------------------------- 
+//--------------------------------------------”Ô∑®”Ô“Â∑÷Œˆ∫Õ÷–º‰¥˙¬Î≤˙…˙----------------------------------------- 
 
+
+///////////////////////////////////////±Ì∏Òπ‹¿Ì//////////////////////////////////////
+int position(int current_procedure_tx) 
+{ 
+	int i=current_procedure_tx,current_level=table[i].level;
+	while(i!=0)
+	{
+		if(current_level-1==table[i].level)
+			current_level--;
+		if(current_level==table[i].level)
+		{
+			//cout<<i<<" ";
+			if(strcmp(token,table[i].name)==0)
+				break;
+		}		
+		i--;
+	}
+	//cout<<endl;
+	return i;
+}
+
+int position_procedure(int tx)
+{
+	int i=tx;
+	//cout<<"tx:"<<tx<<endl;
+	while(i!=0 && strcmp(token,table[i].name)!=0)
+	{
+		i--;
+	}
+	return i;
+}
+
+void Enter(enum object k,int &tx,int lev,int &dx)
+{
+	int i;
+	//œ»≈–∂œ «∑Ò¥Ê‘⁄ 
+	if(k==procedur)
+	{
+		i=position_procedure(tx);
+		if(i!=0 && table[i].kind==procedur)
+			Error(7);
+	}
+	else
+	{
+		i=position(tx);
+		if(i!=0 && (table[i].level==lev) &&(table[i].kind==constant || table[i].kind==variable) )
+			Error(7);
+	}
+	tx++;
+	strcpy(table[tx].name,token);
+	table[tx].kind = k;
+	switch(k)
+	{
+		case constant:
+			table[tx].level=lev;
+			break;
+		case variable:
+			table[tx].level=lev;
+			table[tx].adr=dx;
+			dx++;
+			break;
+		case procedur:
+			table[tx].level=lev;
+			break;
+	}
+}
+//--------------------------------------------±Ì∏Òπ‹¿Ì----------------------------------------- 
+
+///////////////////////////////////////÷–º‰¥˙¬Î//////////////////////////////////////
+int gen(enum function x,int y,int z)
+{
+	if(cx>=cxmax)
+	{
+		cout<<"program too long"<<endl;    //≥Ã–Úπ˝≥§
+		return -1; 
+	}
+	code[cx].f=x;
+	code[cx].l=y;
+	code[cx].a=z;
+	cx++;
+	return 0;
+}
+//--------------------------------------------÷–º‰¥˙¬Î-----------------------------------------
+
+///////////////////////////////////////÷¥––‘À––//////////////////////////////////////
+//l Œ™≤„≤Ó£¨sŒ™π˝≥Ã ˝◊È£¨bŒ™¥À¥Œπ˝≥Ãª˘÷∑ 
+int base(int l, int *s, int b)
+{ 
+	int i=b;
+	while(l>0)
+	{
+		i=s[i];		//÷±Ω”Õ‚π˝≥Ãµƒ ˝æ›∂Œª˘÷∑ 
+		l--;
+	}
+	return i;
+}  
+
+void interpret()
+{
+	int s[stacksize];
+	int t,b,p,temp;	//’ª∂•ºƒ¥Ê∆˜£®÷∏’Î£©t£¨ª˘÷∑ºƒ¥Ê∆˜£®÷∏’Î£©b£¨≥Ã–Úµÿ÷∑ºƒ¥Ê∆˜p£¨
+	struct instruction	i;		//÷∏¡Óºƒ¥Ê∆˜i
+	
+	t=0;
+	b=0;
+	p=0;
+	s[0]=0;
+	s[1]=0;
+	s[2]=0;
+	temp=3;
+	
+	do{
+		i = code[p];
+		p++;
+		
+		if(t>=stacksize)
+		{
+			Error(10);
+			return ;
+		}
+	switch (i.f)
+	{
+		case lit:
+			s[t]=i.a;
+			t++;
+			break;
+		case opr:
+			switch(i.a)
+			{
+				case 0:
+					t=b;
+					p=s[b+2];	//RA ∑µªÿµÿ÷∑
+					b=s[b+1];	//DL ∂ØÃ¨¡¥ «∞√Êµƒª˘÷∑  
+					break;
+				case 1:
+					s[t-1]=-s[t-1];
+					break;
+				case 2:
+					t--;
+					s[t-1]=s[t-1]+s[t];
+					break;
+				case 3:
+					t--;
+					s[t-1]=s[t-1]-s[t];
+					break;
+				case 4:
+					t--;
+					s[t-1]=s[t-1]*s[t];
+					break;
+				case 5:
+					t--;
+					if(s[t]==0)
+					{
+						Error(11);
+						return ;
+					}
+					s[t-1]=s[t-1]/s[t];
+					break;
+				case 6:
+					s[t-1]=s[t-1]%2;
+					break;
+				case 7:
+					if (t+temp>=stacksize)
+					{
+						Error(10);
+						return;
+					}
+					t--;
+					s[t+temp]=s[t];
+					temp++;
+					break;
+				case 8:
+					t--;
+					s[t-1]=(s[t-1]==s[t]);
+					break;
+				case 9:
+					t--;
+					s[t-1]=(s[t-1]!=s[t]);
+					break;
+				case 10:
+					t--;
+					s[t-1]=(s[t-1]<s[t]);
+					break;
+				case 11:
+					t--;
+					s[t-1]=(s[t-1]>=s[t]);
+					break;
+				case 12:
+					t--;
+					s[t-1]=(s[t-1]>s[t]);
+					break;
+				case 13:
+					t--;
+					s[t-1]=(s[t-1]<s[t]);
+					break;
+				case 14:
+					t--;
+					cout<<s[t]<<'\n';
+					break;
+				case 15:
+					cout<<'\n';
+					break;
+				case 16:
+					cin>>s[t];		
+					t++;
+					break;
+			}
+			break;
+		case lod:
+			s[t]=s[base(i.l,s,b)+i.a];
+			t++;
+			break;
+		case sto:
+			t--;
+			s[base(i.l,s,b)+i.a]=s[t];
+			break;
+		case cal:
+			if(t+2>=stacksize)
+			{
+				Error(10);
+				return ; 
+			} 
+			s[t]=base(i.l,s,b);	//SL
+			s[t+1]=b;		//DL
+			s[t+2]=p;		//RA
+			b=t;
+			p=i.a;
+			temp=3;
+			break;
+		case inte:
+			t+=i.a;
+			break;
+		case jmp:
+			p=i.a;
+			break;
+		case jpc:
+			t--;
+			if(s[t]==0)
+				p=i.a;
+			break;
+		case red:
+			cin>>s[t];
+			s[base(i.l,s,b)+i.a]=s[t];
+			break;
+		case wrt:
+			t--;
+			cout<<s[t];
+			break; 
+	}
+	}while(p!=0);
+	 
+}
+//--------------------------------------------÷¥––‘À––-----------------------------------------
+
+  
 int main()
 {
 	Init();
-	Prog();
-	system("pause");
-
+	Analyzer();
+	
+	cout<<"-error: "<<error_num<<endl<<endl;
+		
+	if (error_num==0)
+	{
+		//±Ì∏Òtable ‰≥ˆ 
+		/*for (int i=0; i<table_max; i++)
+		cout<<table[i].name<<"  "<<table[i].kind<<"  "<<table[i].level<<"  "<<table[i].adr<<
+		"  "<<table[i].val<<"  "<<table[i].size<<endl;
+		*/
+		/*if(table[i].kind==constant)
+		cout<<table[i].name<<"  "<<table[i].kind<<"  "<<table[i].level<<"  "<<table[i].val<<"  "<<table[i].size<<endl;
+		else
+		cout<<table[i].name<<"  "<<table[i].kind<<"  "<<table[i].level<<"  "<<table[i].adr<<"  "<<table[i].size<<endl;
+	*/
+		interpret();
+		
+		char f[5];
+		for (int i=0; i<cx; i++)
+		{
+			switch(code[i].f)
+			{
+				case lit:
+					strcpy(f,"lit");
+					break;
+				case opr:
+					strcpy(f,"opr");
+					break;
+				case lod:
+					strcpy(f,"lod");
+					break;
+				case sto:
+					strcpy(f,"sto");
+					break;
+				case cal:
+					strcpy(f,"cal");
+					break;
+				case inte:
+					strcpy(f,"int");
+					break;
+				case jmp:
+					strcpy(f,"jmp");
+					break;
+				case jpc:
+					strcpy(f,"jpc");
+					break;
+				case red:
+					strcpy(f,"red");
+					break;
+				case wrt:
+					strcpy(f,"wrt");
+					break;
+			}
+			cout<<"("<<i<<")  "<<f<<" "<<code[i].l<<"  "<<code[i].a<<endl;	
+		}
+		
+	}
 	return 0;
 }
